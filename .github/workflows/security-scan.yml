@@ -33,7 +33,6 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
           category: trivy
-          
 
       # Snyk — сканування Docker-образу
       - name: Pull Docker image for Snyk
