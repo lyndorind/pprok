@@ -1,0 +1,47 @@
+# Git
+.git
+.github
+.gitignore
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Test results
+tests/
+.coverage
+coverage.xml
+allure-results/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+.devcontainer/
+
+# Secrets and logs
+.env
+.env.*
+*.log
+
+# Extra files
+CHANGELOG.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+SUPPORT.md
+requirements-snyk.txt
+sonar-project.properties
