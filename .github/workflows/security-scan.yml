@@ -97,9 +97,8 @@ jobs:
                       clean(item)
 
           clean(report)
-
-          with open(path, "w", encoding="utf-8") as f:
-              json.dump(report, f, indent=2, ensure_ascii=False)
+          with open("snyk-fixed.sarif", "w", encoding="utf-8") as f:
+            json.dump(report, f, indent=2, ensure_ascii=False)
 
           print(f"Removed {fixed} invalid severity values")
 
@@ -121,12 +120,14 @@ jobs:
           print("SARIF severity validation passed")
           PY
 
+ 
       - name: Upload Snyk SARIF
-        if: ${{ always() && hashFiles('snyk.sarif') != '' }}
+        if: ${{ always() && hashFiles('snyk-fixed.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: snyk.sarif
+          sarif_file: snyk-fixed.sarif
           category: snyk
+
 
       # GRYPE
       - name: Scan image with Grype
