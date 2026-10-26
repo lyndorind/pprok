@@ -1,11 +1,19 @@
 
 name: Docker Security Scan
 
+
 on:
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker image version to scan'
+        required: true
+        default: '0.2.2'
+        type: string
 
   schedule:
     - cron: '0 6 * * 1'
+
 
 permissions:
   contents: read
@@ -15,6 +23,9 @@ jobs:
   security:
     name: Scan Docker image
     runs-on: ubuntu-latest
+    env:
+      IMAGE_REF: lyndorind/pprok:${{ inputs.image_tag || '0.2.2' }}
+
 
     steps:
       - name: Checkout repository
@@ -24,12 +35,13 @@ jobs:
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: lyndorind/pprok:0.2.2
+          image-ref: ${{ env.IMAGE_REF }}
           format: sarif
           output: trivy-results.sarif
           exit-code: '0'
 
       - name: Upload Trivy SARIF
+        if: ${{ always() && hashFiles('trivy-results.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-results.sarif
@@ -38,7 +50,7 @@ jobs:
       # SNYK
       - name: Pull Docker image for Snyk
         if: always()
-        run: docker pull lyndorind/pprok:0.2.2
+        run: docker pull "$IMAGE_REF"
 
       - name: Scan image with Snyk
         if: always()
@@ -47,9 +59,10 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: lyndorind/pprok:0.2.2
+          image: ${{ env.IMAGE_REF }}
           args: --file=.devcontainer/Dockerfile --sarif-file-output=snyk.sarif
 
+      # FIX SNYK SARIF
       - name: Normalize Snyk SARIF severity
         if: ${{ always() && hashFiles('snyk.sarif') != '' }}
         shell: bash
@@ -65,59 +78,66 @@ jobs:
 
           fixed = 0
 
-          def normalize_properties(obj):
+          def clean(obj):
               global fixed
 
-              if not isinstance(obj, dict):
-                  return
+              if isinstance(obj, dict):
+                  if "security-severity" in obj:
+                      value = obj["security-severity"]
 
-              props = obj.get("properties")
+                      try:
+                          score = float(value)
+                          valid = (
+                              math.isfinite(score)
+                              and 0.0 <= score <= 10.0
+                          )
+                      except (ValueError, TypeError, OverflowError):
+                          valid = False
 
-              if not isinstance(props, dict):
-                  return
+                      if valid:
+                          obj["security-severity"] = str(score)
+                      else:
+                          del obj["security-severity"]
+                          fixed += 1
 
-              if "security-severity" not in props:
-                  return
+                  for value in obj.values():
+                      clean(value)
 
-              value = props["security-severity"]
+              elif isinstance(obj, list):
+                  for item in obj:
+                      clean(item)
 
-              try:
-                  score = float(value)
-                  valid = math.isfinite(score) and 0.0 < score <= 10.0
-              except (ValueError, TypeError, OverflowError):
-                  valid = False
+          clean(report)
+          with open("snyk-fixed.sarif", "w", encoding="utf-8") as f:
+            json.dump(report, f, indent=2, ensure_ascii=False)
 
-              if not valid:
-                  del props["security-severity"]
-                  fixed += 1
-              else:
-                  props["security-severity"] = str(score)
+          print(f"Removed {fixed} invalid severity values")
 
-          for run in report.get("runs", []):
-              tool = run.get("tool", {})
+          def verify(obj):
+              if isinstance(obj, dict):
+                  if "security-severity" in obj:
+                      score = float(obj["security-severity"])
+                      assert math.isfinite(score)
+                      assert 0.0 <= score <= 10.0
 
-              for component in [
-                  tool.get("driver", {}),
-                  *tool.get("extensions", [])
-              ]:
-                  for rule in component.get("rules", []):
-                      normalize_properties(rule)
+                  for value in obj.values():
+                      verify(value)
 
-              for result in run.get("results", []):
-                  normalize_properties(result)
+              elif isinstance(obj, list):
+                  for item in obj:
+                      verify(item)
 
-          with open(path, "w", encoding="utf-8") as f:
-              json.dump(report, f, indent=2, ensure_ascii=False)
-
-          print(f"Normalized {fixed} invalid severity values")
+          verify(report)
+          print("SARIF severity validation passed")
           PY
 
       - name: Upload Snyk SARIF
-        if: ${{ always() && hashFiles('snyk.sarif') != '' }}
+        if: ${{ always() && hashFiles('snyk-fixed.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@v4
         with:
-          sarif_file: snyk.sarif
+          sarif_file: snyk-fixed.sarif
           category: snyk
+
 
       # GRYPE
       - name: Scan image with Grype
@@ -125,7 +145,7 @@ jobs:
         id: grype
         uses: anchore/scan-action@v7
         with:
-          image: lyndorind/pprok:0.2.2
+          image: ${{ env.IMAGE_REF }}
           fail-build: false
           output-format: sarif
 
