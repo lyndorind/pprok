@@ -1,0 +1,72 @@
+
+name: Docker Security Scan
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  security:
+    name: Scan Docker image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: lyndorind/pprok:0.2.2
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: '0'
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
+          
+
+      # Snyk — сканування Docker-образу
+      - name: Pull Docker image for Snyk
+        run: docker pull lyndorind/pprok:0.2.2
+
+      - name: Scan image with Snyk
+        uses: snyk/actions/docker@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          image: lyndorind/pprok:0.2.2
+          args: --file=.devcontainer/Dockerfile --sarif-file-output=snyk.sarif
+
+      - name: Upload Snyk SARIF
+        if: ${{ hashFiles('snyk.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: snyk.sarif
+          category: snyk
+
+      # Grype — сканування Docker-образу
+      - name: Scan image with Grype
+        id: grype
+        uses: anchore/scan-action@v7
+        with:
+          image: lyndorind/pprok:0.2.2
+          fail-build: false
+          output-format: sarif
+
+      - name: Upload Grype SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ steps.grype.outputs.sarif }}
+          category: grype
+
