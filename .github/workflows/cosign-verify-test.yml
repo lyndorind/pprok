@@ -1,0 +1,39 @@
+
+name: Test Cosign Verification
+
+on:
+  push:
+    branches:
+      - test/cosign-verify
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify Docker signature
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.0.0
+
+      - name: Verify Docker image signature
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if cosign verify "lyndorind/pprok@sha256:0b273c46957f06f31ca4dd804522db52e94efc579c14d1ff0a8bb78b063fea4b" \
+              --certificate-identity-regexp '^https://github.com/lyndorind/pprok/.github/workflows/docker-release\.yml@refs/tags/v.*$' \
+              --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'; then
+              echo "Cosign signature verified successfully"
+              exit 0
+            fi
+
+            echo "Verification attempt ${attempt} failed"
+
+            if [ "$attempt" -lt 5 ]; then
+              sleep 15
+            fi
+          done
+
+          echo "::error::Cosign signature verification failed"
+          exit 1
