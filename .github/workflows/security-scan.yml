@@ -1,11 +1,19 @@
 
 name: Docker Security Scan
 
+
 on:
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker image version to scan'
+        required: true
+        default: '0.2.2'
+        type: string
 
   schedule:
     - cron: '0 6 * * 1'
+
 
 permissions:
   contents: read
@@ -15,6 +23,9 @@ jobs:
   security:
     name: Scan Docker image
     runs-on: ubuntu-latest
+    env:
+      IMAGE_REF: lyndorind/pprok:${{ inputs.image_tag || '0.2.2' }}
+
 
     steps:
       - name: Checkout repository
@@ -24,7 +35,7 @@ jobs:
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: lyndorind/pprok:0.2.2
+          image-ref: ${{ env.IMAGE_REF }}
           format: sarif
           output: trivy-results.sarif
           exit-code: '0'
@@ -39,7 +50,7 @@ jobs:
       # SNYK
       - name: Pull Docker image for Snyk
         if: always()
-        run: docker pull lyndorind/pprok:0.2.2
+        run: docker pull "$IMAGE_REF"
 
       - name: Scan image with Snyk
         if: always()
@@ -48,7 +59,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: lyndorind/pprok:0.2.2
+          image: ${{ env.IMAGE_REF }}
           args: --file=.devcontainer/Dockerfile --sarif-file-output=snyk.sarif
 
       # FIX SNYK SARIF
@@ -120,7 +131,6 @@ jobs:
           print("SARIF severity validation passed")
           PY
 
- 
       - name: Upload Snyk SARIF
         if: ${{ always() && hashFiles('snyk-fixed.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@v4
@@ -135,7 +145,7 @@ jobs:
         id: grype
         uses: anchore/scan-action@v7
         with:
-          image: lyndorind/pprok:0.2.2
+          image: ${{ env.IMAGE_REF }}
           fail-build: false
           output-format: sarif
 
