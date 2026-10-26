@@ -59,13 +59,28 @@ jobs:
         run: |
           cosign sign --yes "lyndorind/pprok@${DIGEST}"
 
+
       - name: Verify Docker image signature
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          cosign verify "lyndorind/pprok@${DIGEST}" \
-            --certificate-identity-regexp '^https://github.com/lyndorind/pprok/.github/workflows/docker-release\.yml@refs/tags/v.*$' \
-            --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'
+          for attempt in 1 2 3 4 5; do
+            if cosign verify "lyndorind/pprok@${DIGEST}" \
+              --certificate-identity-regexp '^https://github.com/lyndorind/pprok/.github/workflows/docker-release\.yml@refs/tags/v.*$' \
+              --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'; then
+              echo "Cosign signature verified successfully"
+              exit 0
+            fi
+
+            echo "Verification attempt ${attempt} failed"
+            if [ "$attempt" -lt 5 ]; then
+              sleep 15
+            fi
+          done
+
+          echo "::error::Cosign signature verification failed"
+          exit 1
+
 
       - name: Notify Slack
         if: always()
