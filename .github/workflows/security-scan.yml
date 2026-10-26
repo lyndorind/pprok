@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: lyndorind/pprok:0.2.2
           format: sarif
