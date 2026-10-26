@@ -20,6 +20,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # TRIVY
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -34,11 +35,13 @@ jobs:
           sarif_file: trivy-results.sarif
           category: trivy
 
-      # Snyk — сканування Docker-образу
+      # SNYK
       - name: Pull Docker image for Snyk
+        if: always()
         run: docker pull lyndorind/pprok:0.2.2
 
       - name: Scan image with Snyk
+        if: always()
         uses: snyk/actions/docker@master
         continue-on-error: true
         env:
@@ -47,15 +50,78 @@ jobs:
           image: lyndorind/pprok:0.2.2
           args: --file=.devcontainer/Dockerfile --sarif-file-output=snyk.sarif
 
+      - name: Normalize Snyk SARIF severity
+        if: ${{ always() && hashFiles('snyk.sarif') != '' }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import math
+
+          path = "snyk.sarif"
+
+          with open(path, encoding="utf-8") as f:
+              report = json.load(f)
+
+          fixed = 0
+
+          def normalize_properties(obj):
+              global fixed
+
+              if not isinstance(obj, dict):
+                  return
+
+              props = obj.get("properties")
+
+              if not isinstance(props, dict):
+                  return
+
+              if "security-severity" not in props:
+                  return
+
+              value = props["security-severity"]
+
+              try:
+                  score = float(value)
+                  valid = math.isfinite(score) and 0.0 < score <= 10.0
+              except (ValueError, TypeError, OverflowError):
+                  valid = False
+
+              if not valid:
+                  del props["security-severity"]
+                  fixed += 1
+              else:
+                  props["security-severity"] = str(score)
+
+          for run in report.get("runs", []):
+              tool = run.get("tool", {})
+
+              for component in [
+                  tool.get("driver", {}),
+                  *tool.get("extensions", [])
+              ]:
+                  for rule in component.get("rules", []):
+                      normalize_properties(rule)
+
+              for result in run.get("results", []):
+                  normalize_properties(result)
+
+          with open(path, "w", encoding="utf-8") as f:
+              json.dump(report, f, indent=2, ensure_ascii=False)
+
+          print(f"Normalized {fixed} invalid severity values")
+          PY
+
       - name: Upload Snyk SARIF
-        if: ${{ hashFiles('snyk.sarif') != '' }}
+        if: ${{ always() && hashFiles('snyk.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: snyk.sarif
           category: snyk
 
-      # Grype — сканування Docker-образу
+      # GRYPE
       - name: Scan image with Grype
+        if: always()
         id: grype
         uses: anchore/scan-action@v7
         with:
@@ -64,8 +130,8 @@ jobs:
           output-format: sarif
 
       - name: Upload Grype SARIF
+        if: ${{ always() && steps.grype.outputs.sarif != '' }}
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ steps.grype.outputs.sarif }}
           category: grype
-
