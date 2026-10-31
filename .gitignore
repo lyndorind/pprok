@@ -44,3 +44,5 @@ allure-report/
 requirements-snyk.txt
 # Docker Compose secrets
 /secrets/
+# JMeter generated results
+/jmeter/results/

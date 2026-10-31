@@ -1,0 +1,119 @@
+
+name: Lab 7 - JMeter Load Test
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  jmeter-load-test:
+    name: JMeter Load Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Generate PostgreSQL secret
+        run: |
+          mkdir -p secrets
+          python3 -c "import secrets,pathlib; p=pathlib.Path('secrets/db_password.txt'); p.write_text(secrets.token_urlsafe(32),encoding='utf-8')"
+          chmod 600 secrets/db_password.txt
+
+      - name: Build and start application
+        run: docker compose -f compose.yaml up -d --build --wait
+
+      - name: Check API readiness
+        run: |
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:18000/health; then
+              echo "API is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f compose.yaml logs
+          exit 1
+
+      - name: Download Apache JMeter
+        run: |
+          curl -fL --retry 3 \
+            https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz \
+            -o /tmp/apache-jmeter.tgz
+          tar -xzf /tmp/apache-jmeter.tgz -C /tmp
+
+      - name: Monitor containers before test
+        run: docker stats --no-stream
+
+      - name: Run JMeter load test
+        run: |
+          mkdir -p jmeter/results
+          /tmp/apache-jmeter-5.6.3/bin/jmeter \
+            -n \
+            -t jmeter/lab7-load-test.jmx \
+            -l jmeter/results/ci-results.jtl \
+            -e \
+            -o jmeter/results/ci-report
+
+      - name: Validate JMeter results
+        run: |
+          python3 - <<'PY'
+          import csv
+          from pathlib import Path
+
+          path = Path("jmeter/results/ci-results.jtl")
+          with path.open(newline="", encoding="utf-8") as f:
+              rows = list(csv.DictReader(f))
+
+          failed = sum(
+              str(row.get("success", "")).lower() != "true"
+              for row in rows
+          )
+
+          print(f"Total requests: {len(rows)}")
+          print(f"Failed requests: {failed}")
+
+          if len(rows) < 100 or failed > 0:
+              raise SystemExit("JMeter load test failed")
+
+          print("JMeter load test passed")
+          PY
+
+      - name: Monitor containers after test
+        if: always()
+        run: docker stats --no-stream
+
+      - name: Upload JMeter HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lab7-jmeter-report
+          path: |
+            jmeter/results/
+          if-no-files-found: warn
+
+      - name: Upload container logs
+        if: failure()
+        run: docker compose -f compose.yaml logs > container-logs.txt
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lab7-container-logs
+          path: container-logs.txt
+          if-no-files-found: ignore
+
+      - name: Stop containers
+        if: always()
+        run: docker compose -f compose.yaml down
