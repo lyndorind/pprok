@@ -1,0 +1,142 @@
+
+{
+  "info": {
+    "name": "Lab 7 - PostgreSQL API Integration Tests",
+    "description": "Integration tests for FastAPI and PostgreSQL.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "recordId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Health check",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/health"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Service is healthy', function () { pm.expect(pm.response.json().status).to.eql('ok'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Create record",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\":\"Postman Integration Test\",\"value\":100}"
+        },
+        "url": "{{baseUrl}}/records"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', function () { pm.response.to.have.status(201); });",
+              "pm.test('Record created', function () {",
+              "  const data = pm.response.json();",
+              "  pm.expect(data.name).to.eql('Postman Integration Test');",
+              "  pm.expect(data.value).to.eql(100);",
+              "  pm.expect(data.id).to.be.a('number');",
+              "  pm.collectionVariables.set('recordId', data.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - List records",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/records"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Created record exists', function () {",
+              "  const id = Number(pm.collectionVariables.get('recordId'));",
+              "  const records = pm.response.json();",
+              "  pm.expect(records).to.be.an('array');",
+              "  pm.expect(records.some(r => r.id === id && r.value === 100)).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Get record by ID",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/records/{{recordId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Correct record returned', function () {",
+              "  const data = pm.response.json();",
+              "  pm.expect(data.id).to.eql(Number(pm.collectionVariables.get('recordId')));",
+              "  pm.expect(data.name).to.eql('Postman Integration Test');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Record not found",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/records/999999"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 404', function () { pm.response.to.have.status(404); });",
+              "pm.test('Correct error message', function () {",
+              "  pm.expect(pm.response.json().detail).to.eql('Record not found');",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
