@@ -98,23 +98,18 @@ def list_records():
 @app.get(
     "/records/{record_id}",
     response_model=RecordResponse,
+    responses={404: {"description": "Record not found"}},
 )
 def get_record(record_id: int):
     with get_connection() as connection:
         result = connection.execute(
-            """
-            SELECT id, name, value
-            FROM records
-            WHERE id = %s
-            """,
+            "SELECT id, name, value FROM records WHERE id=%s",
             (record_id,),
         )
         record = result.fetchone()
 
     if record is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Record not found",
-        )
+        raise HTTPException(status_code=404, detail="Record not found")
 
     return record
+
