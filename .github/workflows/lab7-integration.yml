@@ -1,0 +1,118 @@
+
+name: Lab 7 - Integration Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Run unit tests
+        run: uv run pytest -v
+
+  integration-tests:
+    name: Postman Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: lab7
+          POSTGRES_USER: labuser
+          POSTGRES_PASSWORD: lab7testpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U labuser -d lab7"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      DB_NAME: lab7
+      DB_USER: labuser
+      DB_PASSWORD: lab7testpassword
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Newman and HTML reporter
+        run: npm install -g newman newman-reporter-htmlextra
+
+      - name: Start FastAPI server
+        run: |
+          uv run uvicorn git_rest_lab2.main:app \
+            --host 127.0.0.1 --port 8000 > uvicorn.log 2>&1 &
+
+      - name: Wait for API readiness
+        run: |
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8000/health; then
+              echo "API is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          cat uvicorn.log
+          exit 1
+
+      - name: Run Postman integration tests
+        run: |
+          mkdir -p reports
+          newman run postman/lab7.postman_collection.json \
+            --env-var "baseUrl=http://127.0.0.1:8000" \
+            --reporters cli,htmlextra \
+            --reporter-htmlextra-export reports/lab7-report.html
+
+      - name: Upload HTML test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lab7-postman-html-report
+          path: reports/
+          if-no-files-found: warn
+
+      - name: Upload API logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lab7-api-logs
+          path: uvicorn.log
+          if-no-files-found: ignore
