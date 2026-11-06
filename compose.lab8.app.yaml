@@ -1,0 +1,6 @@
+services:
+  api:
+    environment:
+      OTEL_ENABLED: "true"
+      OTEL_EXPORT_MODE: console
+      OTEL_SERVICE_NAME: lab8-fastapi
