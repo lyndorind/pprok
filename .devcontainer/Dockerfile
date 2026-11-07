@@ -7,6 +7,8 @@ RUN apt-get update \
 COPY --from=ghcr.io/astral-sh/uv:0.12.17 /uv /uvx /bin/
 
 ENV UV_LINK_MODE=copy
+ENV PYTHONUNBUFFERED=1
+ENV OTEL_SERVICE_NAME=lab8-fastapi
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 

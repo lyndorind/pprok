@@ -9,6 +9,7 @@ from git_rest_lab2.database import (
     get_connection,
     initialize_database,
 )
+from git_rest_lab2.telemetry import configure_telemetry
 
 
 @asynccontextmanager
@@ -22,6 +23,8 @@ app = FastAPI(
     version=__version__,
     lifespan=lifespan,
 )
+
+configure_telemetry(app)
 
 
 class RecordCreate(BaseModel):

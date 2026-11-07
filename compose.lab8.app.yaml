@@ -1,0 +1,16 @@
+
+services:
+  api:
+    environment:
+      OTEL_ENABLED: "true"
+      OTEL_EXPORT_MODE: otlp
+      OTEL_SERVICE_NAME: lab8-fastapi
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    networks:
+      - default
+      - monitoring
+
+networks:
+  monitoring:
+    external: true
+    name: lab8-monitoring_default

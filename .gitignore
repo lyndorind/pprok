@@ -46,3 +46,4 @@ requirements-snyk.txt
 /secrets/
 # JMeter generated results
 /jmeter/results/
+/secrets/grafana_cloud_token.txt

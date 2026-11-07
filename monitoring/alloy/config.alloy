@@ -1,0 +1,25 @@
+
+
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+remotecfg {
+  url = "https://fleet-management-prod-016.grafana.net"
+
+  basic_auth {
+    username      = "1910716"
+    password_file = "/etc/alloy/secrets/fleet_token.txt"
+  }
+
+  name = "lab8-alloy"
+  id   = "lab8-alloy-docker"
+
+  attributes = {
+    "env"     = "lab8",
+    "project" = "fastapi-observability",
+  }
+
+  poll_frequency = "60s"
+}
