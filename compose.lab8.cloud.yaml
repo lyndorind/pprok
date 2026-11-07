@@ -1,0 +1,4 @@
+services:
+  prometheus:
+    volumes:
+      - ./secrets/grafana_cloud_token.txt:/etc/prometheus/secrets/grafana_cloud_token.txt:ro

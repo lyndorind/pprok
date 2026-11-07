@@ -14,3 +14,8 @@ scrape_configs:
   - job_name: "lab8-otel-collector"
     static_configs:
       - targets: ["otel-collector:9464"]
+remote_write:
+  - url: https://prometheus-prod-39-prod-eu-north-0.grafana.net/api/prom/push
+    basic_auth:
+      username: "3745642"
+      password_file: /etc/prometheus/secrets/grafana_cloud_token.txt
