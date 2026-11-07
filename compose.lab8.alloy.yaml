@@ -1,0 +1,34 @@
+
+services:
+  alloy:
+    image: grafana/alloy:v1.13.0
+    restart: unless-stopped
+
+    env_file:
+      - ./secrets/alloy.env
+
+    ports:
+      - "127.0.0.1:12345:12345"
+
+    volumes:
+      - ./monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ./secrets/fleet_token.txt:/etc/alloy/secrets/fleet_token.txt:ro
+      - lab8_alloy_data:/var/lib/alloy/data
+
+    environment:
+      GCLOUD_HOSTED_METRICS_ID: "3745642"
+      GCLOUD_HOSTED_METRICS_URL: "https://prometheus-prod-39-prod-eu-north-0.grafana.net/api/prom/push"
+      GCLOUD_HOSTED_LOGS_ID: "1868489"
+      GCLOUD_HOSTED_LOGS_URL: "https://logs-prod-025.grafana.net/loki/api/v1/push"
+      GCLOUD_FM_URL: "https://fleet-management-prod-016.grafana.net"
+      GCLOUD_FM_HOSTED_ID: "1910716"
+      GCLOUD_FM_POLL_FREQUENCY: "60s"
+
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+
+volumes:
+  lab8_alloy_data:
